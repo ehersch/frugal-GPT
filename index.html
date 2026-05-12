@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FrugalGPT: Efficient GPT-2 Adaptation</title>
+    <meta
+      name="description"
+      content="A blog-post scaffold for Frugal GPT-2, covering LoRA, quantization, and synthetic data augmentation."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero__inner">
+        <p class="eyebrow">CS224N · Spring 2025</p>
+        <h1>
+          FrugalGPT: Efficient GPT-2 Adaptation with LoRA, Quantization, and
+          Synthetic Data
+        </h1>
+        <p class="lede">
+          This post summarizes a Stanford CS224N project on making GPT-2 cheaper
+          to adapt without giving up too much task performance. The work studies
+          three levers: parameter efficiency, memory efficiency, and data
+          efficiency.
+        </p>
+        <div class="hero__meta">
+          <span>Ryan D'Cunha<sup>&dagger;</sup></span>
+          <span>Ethan Hersch<sup>&dagger;</sup></span>
+          <span>Abhinav Chinta<sup>&dagger;</sup></span>
+        </div>
+        <div class="hero__affiliation">
+          <div class="hero__badge" aria-label="Stanford University affiliation">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3Zm0 2.1 6 2.2v4.7c0 4-2.5 7.6-6 9.2-3.5-1.6-6-5.2-6-9.2V6.3l6-2.2Zm-.9 2.8v3H8.6v1.8h2.5V17h1.8v-5.3h2.5V9.9h-2.5v-3h-1.8Z"
+              />
+            </svg>
+            <span>Stanford University</span>
+          </div>
+          <p class="hero__note"><sup>&dagger;</sup> Equal contribution</p>
+        </div>
+        <div class="hero__actions">
+          <a
+            href="Frugal_GPT.pdf"
+            >Read paper</a
+          >
+          <a href="frugal_gpt_poster.pdf">View poster</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="band">
+        <div class="content intro-grid">
+          <article>
+            <h2>Why this project exists</h2>
+            <p>
+              Fine-tuning language models is usually expensive in exactly the
+              places that matter for smaller teams: GPU memory, trainable
+              parameters, and high-quality task data. This project uses GPT-2 as
+              a controlled testbed and asks a practical question: how far can
+              you push efficiency techniques before quality starts to degrade?
+            </p>
+          </article>
+          <aside class="stat-grid">
+            <div class="stat-card">
+              <span class="stat-card__label">Base model</span>
+              <strong>GPT-2 Small</strong>
+              <span class="stat-card__sub">124M parameters</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-card__label">Stress-test task</span>
+              <strong>Sonnet generation</strong>
+              <span class="stat-card__sub">Open-ended generation</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-card__label">Best uplift</span>
+              <strong>52.838 chrF</strong>
+              <span class="stat-card__sub">Synthetic data test score</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-card__label">Main thesis</span>
+              <strong>Efficiency is workable</strong>
+              <span class="stat-card__sub">With clear tradeoffs</span>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="band band--tint">
+        <div class="content">
+          <h2>Setup and baseline</h2>
+          <p>
+            The team fine-tunes GPT-2 on sentiment classification, paraphrase
+            detection, and Shakespearean sonnet generation. The first two tasks
+            provide standard supervised baselines. Sonnet generation is the
+            harder test because it requires longer-form, structured output and
+            makes degradation easier to spot.
+          </p>
+
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Method</th>
+                  <th>Metric</th>
+                  <th>Dev</th>
+                  <th>Test</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>SST sentiment</td>
+                  <td>Full fine-tuning</td>
+                  <td>Accuracy</td>
+                  <td>0.513</td>
+                  <td>0.546</td>
+                </tr>
+                <tr>
+                  <td>CFIMDB sentiment</td>
+                  <td>Full fine-tuning</td>
+                  <td>Accuracy</td>
+                  <td>0.971</td>
+                  <td>-</td>
+                </tr>
+                <tr>
+                  <td>Quora paraphrase</td>
+                  <td>Full fine-tuning</td>
+                  <td>Accuracy</td>
+                  <td>0.911</td>
+                  <td>0.891</td>
+                </tr>
+                <tr>
+                  <td>Sonnet generation</td>
+                  <td>Full fine-tuning</td>
+                  <td>chrF</td>
+                  <td>41.974</td>
+                  <td>41.078</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="content">
+          <h2>Three efficiency levers</h2>
+          <div class="pillar-grid">
+            <article class="pillar">
+              <h3>1. LoRA for parameter efficiency</h3>
+              <p>
+                Instead of updating every model weight, LoRA injects low-rank
+                adapters into the network and trains only those. The project
+                varies rank, scaling factor, and module placement across
+                attention and MLP blocks.
+              </p>
+              <ul>
+                <li>
+                  Best reported configuration: rank 256, alpha 16, learning rate
+                  1e-2
+                </li>
+                <li>
+                  Applying LoRA to attention and MLP layers outperforms
+                  attention-only tuning
+                </li>
+                <li>Best dev chrF: 42.158, slightly above full fine-tuning</li>
+              </ul>
+            </article>
+
+            <article class="pillar">
+              <h3>2. Quantization for memory efficiency</h3>
+              <p>
+                The project compares lower-precision inference and
+                quantization-aware fine-tuning across FP16, BF16, INT8, and INT4
+                settings, measuring footprint, speed, and downstream quality.
+              </p>
+              <ul>
+                <li>
+                  BF16 and FP8-style lower precision preserve much of the
+                  generation quality
+                </li>
+                <li>
+                  INT4 saves more memory but hurts performance without
+                  specialized training
+                </li>
+                <li>
+                  QAFT recovers sonnet quality, but the paper notes signs of
+                  overfitting
+                </li>
+              </ul>
+            </article>
+
+            <article class="pillar">
+              <h3>3. Synthetic data for data efficiency</h3>
+              <p>
+                The original sonnet dataset is tiny. To expand it, the team
+                prompts Gemini 2.5 Flash Lite, Flash, and Pro to generate up to
+                1,000 Shakespearean sonnets, then uses those synthetic samples
+                for distillation-style fine-tuning.
+              </p>
+              <ul>
+                <li>Gemini 2.5 Flash produces the strongest gains for GPT-2</li>
+                <li>Best dev chrF rises to 46.605</li>
+                <li>Best test chrF reaches 52.838</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band--tint">
+        <div class="content">
+          <h2>What matters in the results</h2>
+          <div class="insight-grid">
+            <article class="insight">
+              <h3>LoRA is the cleanest efficiency win</h3>
+              <p>
+                The strongest LoRA setup matches or slightly exceeds the full
+                fine-tuning sonnet baseline while training a much smaller slice
+                of the model. That makes it the most practical efficiency
+                technique in the study.
+              </p>
+            </article>
+            <article class="insight">
+              <h3>Quantization is useful, but brittle during adaptation</h3>
+              <p>
+                Low-precision inference works well for footprint reduction.
+                During fine-tuning, however, the results suggest a narrower
+                path: you can preserve task performance, but general capability
+                may erode if the model starts to over-specialize.
+              </p>
+            </article>
+            <article class="insight">
+              <h3>Synthetic data helps until the student hits a ceiling</h3>
+              <p>
+                Better teacher models do not automatically produce better
+                student outcomes. The project argues that GPT-2 eventually runs
+                into capacity limits, especially when asked to absorb signals
+                from stronger frontier models like Gemini 2.5 Pro.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="content two-up">
+          <article>
+            <h2>Poster snapshot</h2>
+            <p>
+              The poster is useful as a compact summary of the project framing,
+              metrics, and conclusions. For a first pass, start there, then move
+              to the paper for the full experimental detail.
+            </p>
+            <a class="text-link" href="frugal_gpt_poster.pdf"
+              >Open the full poster PDF</a
+            >
+          </article>
+          <div class="embed-card">
+            <object
+              data="frugal_gpt_poster.pdf#view=FitH"
+              type="application/pdf"
+              aria-label="FrugalGPT poster preview"
+            >
+              <p>
+                PDF preview unavailable in this browser.
+                <a href="frugal_gpt_poster.pdf">Download the poster</a>.
+              </p>
+            </object>
+          </div>
+        </div>
+      </section>
+
+      <section class="band band--dark">
+        <div class="content">
+          <h2>Open questions worth extending</h2>
+          <div class="question-list">
+            <div>
+              <span class="question-list__label">Capacity</span>
+              <p>
+                How much stronger would the synthetic-distillation gains be with
+                GPT-2 Medium or Large?
+              </p>
+            </div>
+            <div>
+              <span class="question-list__label">Robustness</span>
+              <p>
+                Do the quantized fine-tuned models retain broader zero-shot
+                behavior across unrelated tasks?
+              </p>
+            </div>
+            <div>
+              <span class="question-list__label">Data quality</span>
+              <p>
+                Would filtering synthetic sonnets by stricter rhyme and meter
+                checks improve distillation efficiency?
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
