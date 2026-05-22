@@ -62,9 +62,10 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(2.5rem, 5vw, 4.5rem);
-  max-width: 16ch;
-  margin: 0 auto 1.1rem;
+  max-width: 1120px;
+  margin: 0 auto 1rem;
+  font-size: clamp(2.15rem, 4vw, 3.55rem);
+  line-height: 1.12;
 }
 
 h2 {
@@ -253,7 +254,7 @@ main {
 .pillar,
 .insight,
 .table-card,
-.embed-card,
+.poster-graphic,
 .question-list > div {
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -330,16 +331,23 @@ tbody tr:last-child td {
   margin-top: 0.45rem;
 }
 
-.embed-card {
-  overflow: hidden;
-  min-height: 32rem;
+.poster-section {
+  display: grid;
+  gap: 1.5rem;
 }
 
-.embed-card object {
+.poster-section__header {
+  max-width: 42rem;
+}
+
+.poster-graphic {
+  overflow: hidden;
+}
+
+.poster-graphic img {
   display: block;
   width: 100%;
-  min-height: 32rem;
-  border: 0;
+  height: auto;
 }
 
 .band--dark .question-list > div {
@@ -354,6 +362,38 @@ tbody tr:last-child td {
 
 .band--dark p {
   color: var(--dark-muted);
+}
+
+.site-footer {
+  padding: 2rem 0 2.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.site-footer__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.4rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1rem;
+}
+
+.site-footer a {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.site-footer a:hover,
+.site-footer a:focus-visible {
+  text-decoration: underline;
+  outline: none;
 }
 
 @media (max-width: 920px) {
@@ -389,10 +429,5 @@ tbody tr:last-child td {
 
   table {
     min-width: 34rem;
-  }
-
-  .embed-card,
-  .embed-card object {
-    min-height: 24rem;
   }
 }
