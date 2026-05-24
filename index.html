@@ -18,10 +18,10 @@
           Synthetic Data
         </h1>
         <p class="lede">
-          This post summarizes a Stanford CS224N project on making GPT-2 cheaper
+          This post summarizes a project on making GPT-2 cheaper
           to adapt without giving up too much task performance. The work studies
           three levers: parameter efficiency, memory efficiency, and data
-          efficiency.
+          efficiency. The goal is to make GPT-2 as strong a model as possible on select tasks while keeping it cheap to train and serve.
         </p>
         <div class="hero__meta">
           <span>Ryan D'Cunha<sup>&dagger;</sup></span>
@@ -49,6 +49,22 @@
     </header>
 
     <main>
+      <section class="band band--figure">
+        <div class="content">
+          <figure class="figure-card figure-card--standalone">
+            <img
+              src="fig/pull_fig%20(1).png"
+              alt="Pull figure summarizing the FrugalGPT design space and project framing"
+              loading="lazy"
+            />
+            <figcaption>
+              Project pull figure: the paper’s central framing of efficiency
+              tradeoffs across adaptation, memory, and data.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
       <section class="band">
         <div class="content intro-grid">
           <article>
@@ -73,7 +89,7 @@
               <span class="stat-card__sub">Open-ended generation</span>
             </div>
             <div class="stat-card">
-              <span class="stat-card__label">Best uplift</span>
+              <span class="stat-card__label">Best sonnet generation score</span>
               <strong>52.838 chrF</strong>
               <span class="stat-card__sub">Synthetic data test score</span>
             </div>
@@ -90,7 +106,7 @@
         <div class="content">
           <h2>Setup and baseline</h2>
           <p>
-            The team fine-tunes GPT-2 on sentiment classification, paraphrase
+            We fine-tune GPT-2 on sentiment classification, paraphrase
             detection, and Shakespearean sonnet generation. The first two tasks
             provide standard supervised baselines. Sonnet generation is the
             harder test because it requires longer-form, structured output and
@@ -209,6 +225,23 @@
         </div>
       </section>
 
+      <section class="band band--figure">
+        <div class="content">
+          <figure class="figure-card figure-card--standalone">
+            <img
+              src="fig/lora_curves_train_dev_loss.png"
+              alt="LoRA training and development loss curves across settings"
+              loading="lazy"
+            />
+            <figcaption>
+              LoRA converges reliably while staying competitive with full
+              fine-tuning quality.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+
       <section class="band band--tint">
         <div class="content">
           <h2>What matters in the results</h2>
@@ -241,6 +274,17 @@
               </p>
             </article>
           </div>
+          <figure class="figure-card figure-card--standalone figure-card--after-grid">
+            <img
+              src="fig/data_qual%20(2).png"
+              alt="Comparison of data quality effects across synthetic generation settings"
+              loading="lazy"
+            />
+            <figcaption>
+              The quality of synthetic samples matters as much as quantity when
+              distilling into smaller students like GPT-2.
+            </figcaption>
+          </figure>
         </div>
       </section>
 
@@ -271,7 +315,7 @@
               <span class="question-list__label">Capacity</span>
               <p>
                 How much stronger would the synthetic-distillation gains be with
-                GPT-2 Medium or Large?
+                GPT-2 Medium or Large? We already experimented with GPT-3 Medium and were surprised to find minimal gain.
               </p>
             </div>
             <div>

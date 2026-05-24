@@ -210,6 +210,10 @@ main {
   padding: 3rem 0;
 }
 
+.band--figure {
+  padding: 1.25rem 0;
+}
+
 .band--tint {
   background: linear-gradient(180deg, rgba(255, 251, 244, 0.45), rgba(255, 255, 255, 0.18));
 }
@@ -348,6 +352,41 @@ tbody tr:last-child td {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.figure-card {
+  margin: 1.15rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.figure-card--tight {
+  margin-top: 0.9rem;
+}
+
+.figure-card--standalone {
+  margin: 0 auto;
+  max-width: 880px;
+}
+
+.figure-card--after-grid {
+  margin-top: 2rem;
+}
+
+.figure-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.figure-card figcaption {
+  padding: 0.7rem 0.85rem 0.85rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .band--dark .question-list > div {
