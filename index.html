@@ -6,22 +6,20 @@
     <title>FrugalGPT: Efficient GPT-2 Adaptation</title>
     <meta
       name="description"
-      content="A blog-post scaffold for Frugal GPT-2, covering LoRA, quantization, and synthetic data augmentation."
+      content="FrugalGPT studies how LoRA, quantization, and synthetic data behave when GPT-2 is pushed toward edge-style constraints."
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="hero">
       <div class="hero__inner">
-        <h1>
-          FrugalGPT: Efficient GPT-2 Adaptation with LoRA, Quantization, and
-          Synthetic Data
-        </h1>
+        <h1>FrugalGPT: What Actually Breaks When GPT-2 Gets Frugal?</h1>
         <p class="lede">
-          This post summarizes a project on making GPT-2 cheaper
-          to adapt without giving up too much task performance. The work studies
-          three levers: parameter efficiency, memory efficiency, and data
-          efficiency. The goal is to make GPT-2 as strong a model as possible on select tasks while keeping it cheap to train and serve.
+          We tried three ways to make GPT-2 cheaper to adapt. One worked
+          cleanly, one hid a failure mode, and one revealed a teacher-student
+          mismatch. The paper's main contribution is not another compression
+          trick; it is a controlled look at how efficiency methods behave when
+          model capacity itself becomes the constraint.
         </p>
         <div class="hero__meta">
           <span>Ryan D'Cunha<sup>&dagger;</sup></span>
@@ -40,41 +38,31 @@
           <p class="hero__note"><sup>&dagger;</sup> Equal contribution</p>
         </div>
         <div class="hero__actions">
-          <a
-            href="Frugal_GPT.pdf"
-            >Read paper</a
-          >
+          <a href="Frugal_GPT.pdf">Read paper</a>
+          <a href="frugal_gpt_poster.pdf">View poster</a>
         </div>
       </div>
     </header>
 
     <main>
-      <section class="band band--figure">
-        <div class="content">
-          <figure class="figure-card figure-card--standalone">
-            <img
-              src="fig/pull_fig_v2.png"
-              alt="Pull figure summarizing the FrugalGPT design space and project framing"
-              loading="lazy"
-            />
-            <figcaption>
-              Project pull figure: the paper’s central framing of efficiency
-              tradeoffs across adaptation, memory, and data.
-            </figcaption>
-          </figure>
-        </div>
-      </section>
-
       <section class="band">
         <div class="content intro-grid">
           <article>
             <h2>Why this project exists</h2>
             <p>
-              Fine-tuning language models is usually expensive in exactly the
-              places that matter for smaller teams: GPU memory, trainable
-              parameters, and high-quality task data. This project uses GPT-2 as
-              a controlled testbed and asks a practical question: how far can
-              you push efficiency techniques before quality starts to degrade?
+              Fine-tuning language models is expensive in the places that matter
+              for edge or local deployment: trainable parameters, memory
+              footprint, and high-quality task data. We use GPT-2 Small as a
+              micro-scale proxy and ask a sharper question: which efficiency
+              knobs preserve quality under tight constraints, and where do they
+              quietly fail?
+            </p>
+            <p>
+              Sonnet generation is the stress test because it is open-ended,
+              structured, and unforgiving. Sentiment classification and
+              paraphrase detection anchor the baselines, while sonnets expose
+              whether the model can retain style, syntax, and form after
+              adaptation.
             </p>
           </article>
           <aside class="stat-grid">
@@ -91,18 +79,117 @@
             <div class="stat-card">
               <span class="stat-card__label">Best sonnet generation score</span>
               <strong>52.838 chrF</strong>
-              <span class="stat-card__sub">Synthetic data test score</span>
+              <span class="stat-card__sub">Synthetic data test score, 12-sonnet test set</span>
             </div>
             <div class="stat-card">
               <span class="stat-card__label">Main thesis</span>
-              <strong>Efficiency is workable</strong>
-              <span class="stat-card__sub">With clear tradeoffs</span>
+              <strong>Capacity changes the rules</strong>
+              <span class="stat-card__sub">Small models fail differently</span>
             </div>
           </aside>
         </div>
       </section>
 
       <section class="band band--tint">
+        <div class="content">
+          <h2>The Three Takeaways</h2>
+          <div class="takeaway-stack">
+            <article class="takeaway">
+              <div>
+                <span class="takeaway__label">1. Clean win</span>
+                <h3>LoRA matches full fine-tuning with far fewer trainable weights</h3>
+                <p>
+                  LoRA is the most straightforward efficiency result in the
+                  paper. Rank 256 uses about 42.5M trainable parameters instead
+                  of updating the full 124M-parameter GPT-2 Small model, and
+                  ranks 1-128 all stay within about one chrF point of full
+                  fine-tuning. For sonnets, GPT-2 seems to need a targeted style
+                  nudge more than a full rewrite of its weights.
+                </p>
+              </div>
+              <figure class="figure-card">
+                <img
+                  src="fig/lora_curves_train_dev_loss.png"
+                  alt="LoRA train and dev loss across ranks and learning rates"
+                  loading="lazy"
+                />
+                <figcaption>
+                  LoRA tolerates larger learning rates and avoids the strongest
+                  overfitting seen in full fine-tuning.
+                </figcaption>
+              </figure>
+            </article>
+
+            <article class="takeaway">
+              <div>
+                <span class="takeaway__label">2. Hidden failure mode</span>
+                <h3>Quantization preserves the target task while damaging generality</h3>
+                <p>
+                  Lower precision can make GPT-2 much smaller: the paper plots
+                  FP64, FP32, BF16, FP8, INT8, and INT4 settings against sonnet
+                  chrF and model size. QAFT recovers much of the sonnet score at
+                  low precision, but the zero-shot check shows the catch:
+                  paraphrase accuracy falls sharply after INT8 QAFT.
+                </p>
+              </div>
+              <div class="figure-grid">
+                <figure class="figure-card">
+                  <img
+                    src="fig/precision_qual%20(1).png"
+                    alt="Sonnet generation performance versus model size under quantization"
+                    loading="lazy"
+                  />
+                  <figcaption>
+                    Quantization gives the memory win, but low-bit behavior
+                    depends on whether the model is only quantized for inference
+                    or adapted under quantization.
+                  </figcaption>
+                </figure>
+                <figure class="figure-card">
+                  <img
+                    src="fig/zero_shot%20(1).png"
+                    alt="Zero-shot paraphrase degradation after quantization-aware fine-tuning"
+                    loading="lazy"
+                  />
+                  <figcaption>
+                    The sonnet score hides the broader degradation: zero-shot
+                    paraphrase accuracy drops after INT8 QAFT.
+                  </figcaption>
+                </figure>
+              </div>
+            </article>
+
+            <article class="takeaway">
+              <div>
+                <span class="takeaway__label">3. Teacher-student mismatch</span>
+                <h3>Synthetic data helps, but a stronger teacher is not always better</h3>
+                <p>
+                  Gemini 2.5 Flash gives the strongest GPT-2 gains, while Gemini
+                  2.5 Pro generates structurally strong sonnets but does not
+                  transfer best to the small student. That is the paper's most
+                  interesting synthetic-data result: quality, cost, and student
+                  capacity interact, so a more capable teacher can still be a
+                  worse fit.
+                </p>
+              </div>
+              <figure class="figure-card">
+                <img
+                  src="fig/data_qual%20(2).png"
+                  alt="Synthetic sonnet data quality versus scale for Gemini 2.5 models"
+                  loading="lazy"
+                />
+                <figcaption>
+                  Flash is the best cost-performance point for GPT-2 in this
+                  setup; Pro improves structure but appears harder for the small
+                  student to distill.
+                </figcaption>
+              </figure>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="band">
         <div class="content">
           <h2>Setup and baseline</h2>
           <p>
@@ -156,12 +243,17 @@
               </tbody>
             </table>
           </div>
+          <p class="note">
+            Important caveat: the sonnet held-out sets are tiny. The reported
+            sonnet test score is measured on only 12 examples, so one unusually
+            good or bad generation can move the final number noticeably.
+          </p>
         </div>
       </section>
 
-      <section class="band">
+      <section class="band band--tint">
         <div class="content">
-          <h2>Three efficiency levers</h2>
+          <h2>What We Tested</h2>
           <div class="pillar-grid">
             <article class="pillar">
               <h3>1. LoRA for parameter efficiency</h3>
@@ -172,9 +264,10 @@
                 attention and MLP blocks.
               </p>
               <ul>
+                <li>Best configuration: rank 256, alpha 16, learning rate 1e-2</li>
                 <li>
-                  Best reported configuration: rank 256, alpha 16, learning rate
-                  1e-2
+                  Rank 256 trains about 42.5M parameters, compared with 124M in
+                  full fine-tuning
                 </li>
                 <li>
                   Applying LoRA to attention and MLP layers outperforms
@@ -188,20 +281,18 @@
               <h3>2. Quantization for memory efficiency</h3>
               <p>
                 The project compares lower-precision inference and
-                quantization-aware fine-tuning across FP16, BF16, INT8, and INT4
-                settings, measuring footprint, speed, and downstream quality.
+                quantization-aware fine-tuning across the plotted FP64, FP32,
+                BF16, FP8, INT8, and INT4 settings, measuring footprint, speed,
+                and downstream quality.
               </p>
               <ul>
-                <li>
-                  BF16 and FP8-style lower precision preserve much of the
-                  generation quality
-                </li>
+                <li>BF16 and FP8 preserve much of the generation quality</li>
                 <li>
                   INT4 saves more memory but hurts performance without
                   specialized training
                 </li>
                 <li>
-                  QAFT recovers sonnet quality, but the paper notes signs of
+                  QAFT recovers sonnet quality, but the paper finds signs of
                   overfitting
                 </li>
               </ul>
@@ -218,91 +309,86 @@
               <ul>
                 <li>Gemini 2.5 Flash produces the strongest gains for GPT-2</li>
                 <li>Best dev chrF rises to 46.605</li>
-                <li>Best test chrF reaches 52.838</li>
+                <li>Best test chrF reaches 52.838 on a 12-sonnet test set</li>
               </ul>
             </article>
           </div>
         </div>
       </section>
 
-      <section class="band band--figure">
+      <section class="band">
         <div class="content">
-          <figure class="figure-card figure-card--standalone">
-            <img
-              src="fig/lora_curves_train_dev_loss.png"
-              alt="LoRA training and development loss curves across settings"
-              loading="lazy"
-            />
-            <figcaption>
-              LoRA converges reliably while staying competitive with full
-              fine-tuning quality.
-            </figcaption>
-          </figure>
-        </div>
-      </section>
-
-
-      <section class="band band--tint">
-        <div class="content">
-          <h2>What matters in the results</h2>
+          <h2>Why The Synthetic Result Is Surprising</h2>
           <div class="insight-grid">
             <article class="insight">
-              <h3>LoRA is the cleanest efficiency win</h3>
+              <h3>Flash Lite is cheap, but noisy</h3>
               <p>
-                The strongest LoRA setup matches or slightly exceeds the full
-                fine-tuning sonnet baseline while training a much smaller slice
-                of the model. That makes it the most practical efficiency
-                technique in the study.
+                Gemini 2.5 Flash Lite costs very little, but only 56% of its
+                generated sonnets pass the paper's automated 14-line plus rhyme
+                check. Adding more of that data does not help GPT-2.
               </p>
             </article>
             <article class="insight">
-              <h3>Quantization is useful, but brittle during adaptation</h3>
+              <h3>Flash is the best fit</h3>
               <p>
-                Low-precision inference works well for footprint reduction.
-                During fine-tuning, however, the results suggest a narrower
-                path: you can preserve task performance, but general capability
-                may erode if the model starts to over-specialize.
+                Gemini 2.5 Flash reaches a 72% perfect-sonnet rate and produces
+                the strongest student result. It seems to land in the useful
+                middle: better structure without overwhelming the student.
               </p>
             </article>
             <article class="insight">
-              <h3>Synthetic data helps until the student hits a ceiling</h3>
+              <h3>Pro is strongest, but not best</h3>
               <p>
-                Better teacher models do not automatically produce better
-                student outcomes. The project argues that GPT-2 eventually runs
-                into capacity limits, especially when asked to absorb signals
-                from stronger frontier models like Gemini 2.5 Pro.
+                Gemini 2.5 Pro has the highest automated validity rate at 75%,
+                but its 1,000-example run trails Flash. That points to capacity
+                mismatch rather than simple data quality.
               </p>
             </article>
           </div>
-          <figure class="figure-card figure-card--standalone figure-card--after-grid">
-            <img
-              src="fig/data_qual%20(2).png"
-              alt="Comparison of data quality effects across synthetic generation settings"
-              loading="lazy"
-            />
-            <figcaption>
-              The quality of synthetic samples matters as much as quantity when
-              distilling into smaller students like GPT-2.
-            </figcaption>
-          </figure>
+          <div class="table-card table-card--compact">
+            <table>
+              <thead>
+                <tr>
+                  <th>Teacher</th>
+                  <th>Perfect sonnet rate</th>
+                  <th>Takeaway</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Gemini 2.5 Flash Lite</td>
+                  <td>56%</td>
+                  <td>Cheapest, but low enough quality that more data can hurt</td>
+                </tr>
+                <tr>
+                  <td>Gemini 2.5 Flash</td>
+                  <td>72%</td>
+                  <td>Best downstream fit for GPT-2 Small</td>
+                </tr>
+                <tr>
+                  <td>Gemini 2.5 Pro</td>
+                  <td>75%</td>
+                  <td>Most structurally valid, but not the best student result</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <section class="band">
+      <section class="band band--tint">
         <div class="content poster-section">
           <div class="poster-section__header">
-            <h2>Poster snapshot</h2>
+            <h2>Project Artifacts</h2>
             <p>
-              The poster is useful as a compact summary of the project framing,
-              metrics, and conclusions. For a first pass, start there, then move
-              to the paper for the full experimental detail.
+              The poster and pull figure are useful compact summaries, but the
+              main story lives in the result charts above.
             </p>
           </div>
-          <div class="poster-graphic">
-            <img
-              src="frugal_gpt_poster_page-0001.jpg"
-              alt="FrugalGPT project poster"
-            />
+          <div class="artifact-links">
+            <a href="Frugal_GPT.pdf">Paper</a>
+            <a href="frugal_gpt_poster.pdf">Poster</a>
+            <a href="fig/pull_fig%20(1).png">Pull figure</a>
           </div>
         </div>
       </section>
@@ -315,7 +401,8 @@
               <span class="question-list__label">Capacity</span>
               <p>
                 How much stronger would the synthetic-distillation gains be with
-                GPT-2 Medium or Large? We already experimented with GPT-3 Medium and were surprised to find minimal gain.
+                GPT-2 Medium or Large? We already tested GPT-2 Large on Gemini
+                Pro synthetic data and saw only minimal gain.
               </p>
             </div>
             <div>
