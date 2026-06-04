@@ -1,437 +1,639 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FrugalGPT: Efficient GPT-2 Adaptation</title>
-    <meta
-      name="description"
-      content="FrugalGPT studies how LoRA, quantization, and synthetic data behave when GPT-2 is pushed toward edge-style constraints."
-    />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <header class="hero">
-      <div class="hero__inner">
-        <h1>FrugalGPT: What Actually Breaks When GPT-2 Gets Frugal?</h1>
-        <p class="lede">
-          We tried three ways to make GPT-2 cheaper to adapt. One worked
-          cleanly, one hid a failure mode, and one revealed a teacher-student
-          mismatch. The paper's main contribution is not another compression
-          trick; it is a controlled look at how efficiency methods behave when
-          model capacity itself becomes the constraint.
-        </p>
-        <div class="hero__meta">
-          <span>Ryan D'Cunha<sup>&dagger;</sup></span>
-          <span>Ethan Hersch<sup>&dagger;</sup></span>
-          <span>Abhinav Chinta<sup>&dagger;</sup></span>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FrugalGPT · Ethan Hersch</title>
+  <meta name="description" content="FrugalGPT studies how LoRA, quantization, and synthetic data behave when GPT-2 is pushed toward edge-style constraints." />
+  <style>
+    /* ── Reset & base ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --border: #e5e7eb;
+      --code-bg: #f3f4f6;
+      --max-w: 720px;
+      --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+    }
+
+    html { font-size: 17px; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Main content (3-column grid: gutter | text | gutter) ── */
+    main {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 4rem 1.5rem 6rem;
+      display: grid;
+      grid-template-columns: minmax(0, 220px) minmax(0, var(--max-w)) minmax(0, 220px);
+      column-gap: 2rem;
+    }
+
+    main > * {
+      grid-column: 2;
+    }
+
+    .aside-right,
+    .aside-left {
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: var(--muted);
+      align-self: start;
+      margin: 0;
+    }
+    .aside-right { grid-column: 3; }
+    .aside-left  { grid-column: 1; text-align: right; }
+
+    .aside-right strong,
+    .aside-left strong { color: var(--fg); display: block; margin-bottom: 0.25rem; }
+
+    .aside-questions {
+      grid-column: 3;
+      align-self: start;
+      background: #fefce8;
+      border-left: 3px solid #ca8a04;
+      padding: 0.9rem 1rem;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: var(--fg);
+    }
+
+    .aside-questions h4 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #92400e;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+
+    .aside-questions h5 {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--fg);
+      margin: 0.75rem 0 0.2rem;
+    }
+
+    .aside-questions p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    @media (max-width: 960px) {
+      main {
+        display: block;
+        max-width: var(--max-w);
+      }
+      .aside-right, .aside-left {
+        display: block;
+        background: var(--code-bg);
+        border-left: 3px solid var(--accent);
+        padding: 0.75rem 1rem;
+        margin: 1.25rem 0;
+        font-size: 0.85rem;
+        text-align: left;
+      }
+    }
+
+    /* ── Post header ────────────────────────────────────────── */
+    .post-meta {
+      font-size: 0.78rem;
+      color: #16a34a;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+
+    h1.post-title {
+      font-size: 2.25rem;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+    }
+
+    .post-subtitle {
+      font-size: 1.125rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+      line-height: 1.55;
+    }
+
+    .author-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .author-meta {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .affiliation-row {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+    }
+
+    .header-rule {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0 0 2rem;
+    }
+
+    .callout.tldr {
+      background: #ecfdf5;
+      border: none;
+      border-left: 3px solid #16a34a;
+      border-radius: 0;
+      color: var(--fg);
+    }
+    .callout.tldr strong {
+      color: #16a34a;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.8rem;
+    }
+
+    /* ── Prose ──────────────────────────────────────────────── */
+    .prose h2 {
+      font-size: 1.375rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      margin: 3rem 0 0.75rem;
+    }
+
+    .prose h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 2rem 0 0.5rem;
+      color: var(--fg);
+    }
+
+    .prose p { margin-bottom: 1.25rem; }
+
+    .prose a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .prose ul, .prose ol {
+      padding-left: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .prose li { margin-bottom: 0.35rem; }
+
+    .prose strong { font-weight: 600; }
+
+    .prose em { font-style: italic; }
+
+    .prose blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.5rem 0 0.5rem 1.25rem;
+      color: var(--muted);
+      font-style: italic;
+      margin: 1.5rem 0;
+    }
+
+    /* ── Code ───────────────────────────────────────────────── */
+    .prose code {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      background: var(--code-bg);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      color: #c7254e;
+    }
+
+    .prose pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: var(--font-mono);
+      font-size: 0.825rem;
+      line-height: 1.65;
+      padding: 1.25rem 1.5rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+    }
+
+    .prose pre code {
+      background: none;
+      color: inherit;
+      padding: 0;
+      font-size: inherit;
+    }
+
+    /* ── Figures / images ───────────────────────────────────── */
+    .prose figure {
+      margin: 2.5rem 0;
+    }
+
+    .prose figure img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .prose figcaption {
+      text-align: center;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      margin-top: 0.6rem;
+    }
+
+    .prose .figure-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin: 2.5rem 0;
+    }
+
+    .prose .figure-pair figure {
+      margin: 0;
+    }
+
+    @media (max-width: 600px) {
+      .prose .figure-pair {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ── Callout box ────────────────────────────────────────── */
+    .callout {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+    }
+
+    .callout strong { color: var(--accent); }
+
+    /* ── Tables ─────────────────────────────────────────────── */
+    .prose table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 1.5rem 0;
+    }
+
+    .prose th {
+      text-align: left;
+      font-weight: 600;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 2px solid var(--border);
+      color: var(--fg);
+    }
+
+    .prose td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--fg);
+      vertical-align: top;
+    }
+
+    .prose tr:last-child td {
+      border-bottom: none;
+    }
+
+    .prose .table-note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: -0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── Stat grid ──────────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .stat-card {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .stat-card__label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .stat-card strong {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    .stat-card__sub {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 500px) {
+      .stat-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Action links ───────────────────────────────────────── */
+    .action-links {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin: 1.25rem 0;
+    }
+
+    .action-links a {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      padding: 0.45rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .action-links a:hover { opacity: 0.88; }
+
+    /* ── Divider ────────────────────────────────────────────── */
+    .prose hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 3rem 0;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+
+    footer a { color: var(--muted); text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <main>
+    <div class="post-meta">DEEP LEARNING &nbsp;·&nbsp; EFFICIENCY</div>
+
+    <h1 class="post-title">FrugalGPT: What Actually Breaks When GPT-2 Gets Frugal?</h1>
+
+    <p class="post-subtitle">
+      We tried three ways to make GPT-2 cheaper to adapt. One worked cleanly, one hid a failure mode, and one revealed a teacher-student mismatch. The paper's main contribution is not another compression trick; it is a controlled look at how efficiency methods behave when model capacity itself becomes the constraint.
+    </p>
+
+    <div class="author-row">
+      <span class="author-meta">Ryan D'Cunha<sup>†</sup> &nbsp;·&nbsp; Ethan Hersch<sup>†</sup> &nbsp;·&nbsp; Abhinav Chinta<sup>†</sup></span>
+    </div>
+    <div class="affiliation-row">Stanford University &nbsp;·&nbsp; <sup>†</sup>Equal contribution</div>
+
+    <div class="action-links">
+      <a href="Frugal_GPT.pdf">Read paper</a>
+      <a href="frugal_gpt_poster.pdf">View poster</a>
+    </div>
+
+    <hr class="header-rule" />
+
+    <p class="callout tldr"><strong>TL;DR</strong><br />LoRA matches full fine-tuning at a fraction of the trainable parameters. Quantization quietly damages generality even when the target task looks fine. And a stronger synthetic-data teacher doesn't always produce a better student — capacity mismatch matters more than raw data quality.</p>
+
+    <article class="prose">
+
+      <figure>
+        <img src="fig/pull_fig%20(1).png" alt="FrugalGPT pull figure overview" loading="lazy" />
+      </figure>
+
+      <h2>Why this project exists</h2>
+
+      <p>
+        Fine-tuning language models is expensive in the places that matter for edge or local deployment: trainable parameters, memory footprint, and high-quality task data. We use GPT-2 Small as a micro-scale proxy and ask a sharper question: which efficiency knobs preserve quality under tight constraints, and where do they quietly fail?
+      </p>
+
+      <p>
+        Sonnet generation is the stress test because it is open-ended, structured, and unforgiving. Sentiment classification and paraphrase detection anchor the baselines, while sonnets expose whether the model can retain style, syntax, and form after adaptation.
+      </p>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-card__label">Base model</span>
+          <strong>GPT-2 Small</strong>
+          <span class="stat-card__sub">124M parameters</span>
         </div>
-        <div class="hero__affiliation">
-          <div class="hero__badge" aria-label="Stanford University affiliation">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path
-                d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3Zm0 2.1 6 2.2v4.7c0 4-2.5 7.6-6 9.2-3.5-1.6-6-5.2-6-9.2V6.3l6-2.2Zm-.9 2.8v3H8.6v1.8h2.5V17h1.8v-5.3h2.5V9.9h-2.5v-3h-1.8Z"
-              />
-            </svg>
-            <span>Stanford University</span>
-          </div>
-          <p class="hero__note"><sup>&dagger;</sup> Equal contribution</p>
+        <div class="stat-card">
+          <span class="stat-card__label">Stress-test task</span>
+          <strong>Sonnet generation</strong>
+          <span class="stat-card__sub">Open-ended generation</span>
         </div>
-        <div class="hero__actions">
-          <a href="Frugal_GPT.pdf">Read paper</a>
-          <a href="frugal_gpt_poster.pdf">View poster</a>
+        <div class="stat-card">
+          <span class="stat-card__label">Best sonnet generation score</span>
+          <strong>52.838 chrF</strong>
+          <span class="stat-card__sub">Synthetic data test score, 12-sonnet test set</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card__label">Main thesis</span>
+          <strong>Capacity changes the rules</strong>
+          <span class="stat-card__sub">Small models fail differently</span>
         </div>
       </div>
-    </header>
 
-    <main>
-      <section class="band">
-        <div class="content intro-grid">
-          <article>
-            <h2>Why this project exists</h2>
-            <p>
-              Fine-tuning language models is expensive in the places that matter
-              for edge or local deployment: trainable parameters, memory
-              footprint, and high-quality task data. We use GPT-2 Small as a
-              micro-scale proxy and ask a sharper question: which efficiency
-              knobs preserve quality under tight constraints, and where do they
-              quietly fail?
-            </p>
-            <p>
-              Sonnet generation is the stress test because it is open-ended,
-              structured, and unforgiving. Sentiment classification and
-              paraphrase detection anchor the baselines, while sonnets expose
-              whether the model can retain style, syntax, and form after
-              adaptation.
-            </p>
-          </article>
-          <aside class="stat-grid">
-            <div class="stat-card">
-              <span class="stat-card__label">Base model</span>
-              <strong>GPT-2 Small</strong>
-              <span class="stat-card__sub">124M parameters</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-card__label">Stress-test task</span>
-              <strong>Sonnet generation</strong>
-              <span class="stat-card__sub">Open-ended generation</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-card__label">Best sonnet generation score</span>
-              <strong>52.838 chrF</strong>
-              <span class="stat-card__sub">Synthetic data test score, 12-sonnet test set</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-card__label">Main thesis</span>
-              <strong>Capacity changes the rules</strong>
-              <span class="stat-card__sub">Small models fail differently</span>
-            </div>
-          </aside>
-        </div>
-      </section>
+      <hr />
 
-      <section class="band band--tint">
-        <div class="content">
-          <h2>The Three Takeaways</h2>
-          <div class="takeaway-stack">
-            <article class="takeaway">
-              <div>
-                <span class="takeaway__label">1. Clean win</span>
-                <h3>LoRA matches full fine-tuning with far fewer trainable weights</h3>
-                <p>
-                  LoRA is the most straightforward efficiency result in the
-                  paper. Rank 256 uses about 42.5M trainable parameters instead
-                  of updating the full 124M-parameter GPT-2 Small model, and
-                  ranks 1-128 all stay within about one chrF point of full
-                  fine-tuning. For sonnets, GPT-2 seems to need a targeted style
-                  nudge more than a full rewrite of its weights.
-                </p>
-              </div>
-              <figure class="figure-card">
-                <img
-                  src="fig/lora_curves_train_dev_loss.png"
-                  alt="LoRA train and dev loss across ranks and learning rates"
-                  loading="lazy"
-                />
-                <figcaption>
-                  LoRA tolerates larger learning rates and avoids the strongest
-                  overfitting seen in full fine-tuning.
-                </figcaption>
-              </figure>
-            </article>
+      <h2>Setup and baseline</h2>
 
-            <article class="takeaway">
-              <div>
-                <span class="takeaway__label">2. Hidden failure mode</span>
-                <h3>Quantization preserves the target task while damaging generality</h3>
-                <p>
-                  Lower precision can make GPT-2 much smaller: the paper plots
-                  FP64, FP32, BF16, FP8, INT8, and INT4 settings against sonnet
-                  chrF and model size. QAFT recovers much of the sonnet score at
-                  low precision, but the zero-shot check shows the catch:
-                  paraphrase accuracy falls sharply after INT8 QAFT.
-                </p>
-              </div>
-              <div class="figure-grid">
-                <figure class="figure-card">
-                  <img
-                    src="fig/precision_qual%20(1).png"
-                    alt="Sonnet generation performance versus model size under quantization"
-                    loading="lazy"
-                  />
-                  <figcaption>
-                    Quantization gives the memory win, but low-bit behavior
-                    depends on whether the model is only quantized for inference
-                    or adapted under quantization.
-                  </figcaption>
-                </figure>
-                <figure class="figure-card">
-                  <img
-                    src="fig/zero_shot%20(1).png"
-                    alt="Zero-shot paraphrase degradation after quantization-aware fine-tuning"
-                    loading="lazy"
-                  />
-                  <figcaption>
-                    The sonnet score hides the broader degradation: zero-shot
-                    paraphrase accuracy drops after INT8 QAFT.
-                  </figcaption>
-                </figure>
-              </div>
-            </article>
+      <p>
+        We fine-tune GPT-2 on sentiment classification, paraphrase detection, and Shakespearean sonnet generation. The first two tasks provide standard supervised baselines. Sonnet generation is the harder test because it requires longer-form, structured output and makes degradation easier to spot.
+      </p>
 
-            <article class="takeaway">
-              <div>
-                <span class="takeaway__label">3. Teacher-student mismatch</span>
-                <h3>Synthetic data helps, but a stronger teacher is not always better</h3>
-                <p>
-                  Gemini 2.5 Flash gives the strongest GPT-2 gains, while Gemini
-                  2.5 Pro generates structurally strong sonnets but does not
-                  transfer best to the small student. That is the paper's most
-                  interesting synthetic-data result: quality, cost, and student
-                  capacity interact, so a more capable teacher can still be a
-                  worse fit.
-                </p>
-              </div>
-              <figure class="figure-card">
-                <img
-                  src="fig/data_qual%20(2).png"
-                  alt="Synthetic sonnet data quality versus scale for Gemini 2.5 models"
-                  loading="lazy"
-                />
-                <figcaption>
-                  Flash is the best cost-performance point for GPT-2 in this
-                  setup; Pro improves structure but appears harder for the small
-                  student to distill.
-                </figcaption>
-              </figure>
-            </article>
-          </div>
-        </div>
-      </section>
+      <table>
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Method</th>
+            <th>Metric</th>
+            <th>Dev</th>
+            <th>Test</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>SST sentiment</td>
+            <td>Full fine-tuning</td>
+            <td>Accuracy</td>
+            <td>0.513</td>
+            <td>0.546</td>
+          </tr>
+          <tr>
+            <td>CFIMDB sentiment</td>
+            <td>Full fine-tuning</td>
+            <td>Accuracy</td>
+            <td>0.971</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>Quora paraphrase</td>
+            <td>Full fine-tuning</td>
+            <td>Accuracy</td>
+            <td>0.911</td>
+            <td>0.891</td>
+          </tr>
+          <tr>
+            <td>Sonnet generation</td>
+            <td>Full fine-tuning</td>
+            <td>chrF</td>
+            <td>41.974</td>
+            <td>41.078</td>
+          </tr>
+        </tbody>
+      </table>
 
-      <section class="band">
-        <div class="content">
-          <h2>Setup and baseline</h2>
-          <p>
-            We fine-tune GPT-2 on sentiment classification, paraphrase
-            detection, and Shakespearean sonnet generation. The first two tasks
-            provide standard supervised baselines. Sonnet generation is the
-            harder test because it requires longer-form, structured output and
-            makes degradation easier to spot.
-          </p>
+      <p class="table-note">Important caveat: the sonnet held-out sets are tiny. The reported sonnet test score is measured on only 12 examples, so one unusually good or bad generation can move the final number noticeably.</p>
 
-          <div class="table-card">
-            <table>
-              <thead>
-                <tr>
-                  <th>Task</th>
-                  <th>Method</th>
-                  <th>Metric</th>
-                  <th>Dev</th>
-                  <th>Test</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>SST sentiment</td>
-                  <td>Full fine-tuning</td>
-                  <td>Accuracy</td>
-                  <td>0.513</td>
-                  <td>0.546</td>
-                </tr>
-                <tr>
-                  <td>CFIMDB sentiment</td>
-                  <td>Full fine-tuning</td>
-                  <td>Accuracy</td>
-                  <td>0.971</td>
-                  <td>-</td>
-                </tr>
-                <tr>
-                  <td>Quora paraphrase</td>
-                  <td>Full fine-tuning</td>
-                  <td>Accuracy</td>
-                  <td>0.911</td>
-                  <td>0.891</td>
-                </tr>
-                <tr>
-                  <td>Sonnet generation</td>
-                  <td>Full fine-tuning</td>
-                  <td>chrF</td>
-                  <td>41.974</td>
-                  <td>41.078</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="note">
-            Important caveat: the sonnet held-out sets are tiny. The reported
-            sonnet test score is measured on only 12 examples, so one unusually
-            good or bad generation can move the final number noticeably.
-          </p>
-        </div>
-      </section>
+      <hr />
 
-      <section class="band band--tint">
-        <div class="content">
-          <h2>What We Tested</h2>
-          <div class="pillar-grid">
-            <article class="pillar">
-              <h3>1. LoRA for parameter efficiency</h3>
-              <p>
-                Instead of updating every model weight, LoRA injects low-rank
-                adapters into the network and trains only those. The project
-                varies rank, scaling factor, and module placement across
-                attention and MLP blocks.
-              </p>
-              <ul>
-                <li>Best configuration: rank 256, alpha 16, learning rate 1e-2</li>
-                <li>
-                  Rank 256 trains about 42.5M parameters, compared with 124M in
-                  full fine-tuning
-                </li>
-                <li>
-                  Applying LoRA to attention and MLP layers outperforms
-                  attention-only tuning
-                </li>
-                <li>Best dev chrF: 42.158, slightly above full fine-tuning</li>
-              </ul>
-            </article>
+      <h2>Takeaway 1 — LoRA matches full fine-tuning with far fewer trainable weights</h2>
 
-            <article class="pillar">
-              <h3>2. Quantization for memory efficiency</h3>
-              <p>
-                The project compares lower-precision inference and
-                quantization-aware fine-tuning across the plotted FP64, FP32,
-                BF16, FP8, INT8, and INT4 settings, measuring footprint, speed,
-                and downstream quality.
-              </p>
-              <ul>
-                <li>BF16 and FP8 preserve much of the generation quality</li>
-                <li>
-                  INT4 saves more memory but hurts performance without
-                  specialized training
-                </li>
-                <li>
-                  QAFT recovers sonnet quality, but the paper finds signs of
-                  overfitting
-                </li>
-              </ul>
-            </article>
+      <p>
+        LoRA is the most straightforward efficiency result in the paper. Rank 256 uses about 42.5M trainable parameters instead of updating the full 124M-parameter GPT-2 Small model, and ranks 1–128 all stay within about one chrF point of full fine-tuning. For sonnets, GPT-2 seems to need a targeted style nudge more than a full rewrite of its weights.
+      </p>
 
-            <article class="pillar">
-              <h3>3. Synthetic data for data efficiency</h3>
-              <p>
-                The original sonnet dataset is tiny. To expand it, the team
-                prompts Gemini 2.5 Flash Lite, Flash, and Pro to generate up to
-                1,000 Shakespearean sonnets, then uses those synthetic samples
-                for distillation-style fine-tuning.
-              </p>
-              <ul>
-                <li>Gemini 2.5 Flash produces the strongest gains for GPT-2</li>
-                <li>Best dev chrF rises to 46.605</li>
-                <li>Best test chrF reaches 52.838 on a 12-sonnet test set</li>
-              </ul>
-            </article>
-          </div>
-        </div>
-      </section>
+      <ul>
+        <li>Best configuration: rank 256, alpha 16, learning rate 1e-2</li>
+        <li>Rank 256 trains about 42.5M parameters, compared with 124M in full fine-tuning</li>
+        <li>Applying LoRA to attention and MLP layers outperforms attention-only tuning</li>
+        <li>Best dev chrF: 42.158, slightly above full fine-tuning</li>
+      </ul>
 
-      <section class="band">
-        <div class="content">
-          <h2>Why The Synthetic Result Is Surprising</h2>
-          <div class="insight-grid">
-            <article class="insight">
-              <h3>Flash Lite is cheap, but noisy</h3>
-              <p>
-                Gemini 2.5 Flash Lite costs very little, but only 56% of its
-                generated sonnets pass the paper's automated 14-line plus rhyme
-                check. Adding more of that data does not help GPT-2.
-              </p>
-            </article>
-            <article class="insight">
-              <h3>Flash is the best fit</h3>
-              <p>
-                Gemini 2.5 Flash reaches a 72% perfect-sonnet rate and produces
-                the strongest student result. It seems to land in the useful
-                middle: better structure without overwhelming the student.
-              </p>
-            </article>
-            <article class="insight">
-              <h3>Pro is strongest, but not best</h3>
-              <p>
-                Gemini 2.5 Pro has the highest automated validity rate at 75%,
-                but its 1,000-example run trails Flash. That points to capacity
-                mismatch rather than simple data quality.
-              </p>
-            </article>
-          </div>
-          <div class="table-card table-card--compact">
-            <table>
-              <thead>
-                <tr>
-                  <th>Teacher</th>
-                  <th>Perfect sonnet rate</th>
-                  <th>Takeaway</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Gemini 2.5 Flash Lite</td>
-                  <td>56%</td>
-                  <td>Cheapest, but low enough quality that more data can hurt</td>
-                </tr>
-                <tr>
-                  <td>Gemini 2.5 Flash</td>
-                  <td>72%</td>
-                  <td>Best downstream fit for GPT-2 Small</td>
-                </tr>
-                <tr>
-                  <td>Gemini 2.5 Pro</td>
-                  <td>75%</td>
-                  <td>Most structurally valid, but not the best student result</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <figure>
+        <img src="fig/lora_curves_train_dev_loss.png" alt="LoRA train and dev loss across ranks and learning rates" loading="lazy" />
+        <figcaption>LoRA tolerates larger learning rates and avoids the strongest overfitting seen in full fine-tuning.</figcaption>
+      </figure>
 
-      <section class="band band--tint">
-        <div class="content poster-section">
-          <div class="poster-section__header">
-            <h2>Project Artifacts</h2>
-            <p>
-              The poster and pull figure are useful compact summaries, but the
-              main story lives in the result charts above.
-            </p>
-          </div>
-          <div class="artifact-links">
-            <a href="Frugal_GPT.pdf">Paper</a>
-            <a href="frugal_gpt_poster.pdf">Poster</a>
-            <a href="fig/pull_fig%20(1).png">Pull figure</a>
-          </div>
-        </div>
-      </section>
+      <hr />
 
-      <section class="band band--dark">
-        <div class="content">
-          <h2>Open questions worth extending</h2>
-          <div class="question-list">
-            <div>
-              <span class="question-list__label">Capacity</span>
-              <p>
-                How much stronger would the synthetic-distillation gains be with
-                GPT-2 Medium or Large? We already tested GPT-2 Large on Gemini
-                Pro synthetic data and saw only minimal gain.
-              </p>
-            </div>
-            <div>
-              <span class="question-list__label">Robustness</span>
-              <p>
-                Do the quantized fine-tuned models retain broader zero-shot
-                behavior across unrelated tasks?
-              </p>
-            </div>
-            <div>
-              <span class="question-list__label">Data quality</span>
-              <p>
-                Would filtering synthetic sonnets by stricter rhyme and meter
-                checks improve distillation efficiency?
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-    <footer class="site-footer">
-      <div class="content site-footer__inner">
-        <span>Project team</span>
-        <nav aria-label="Team websites">
-          <a href="https://ehersch.github.io/">Ethan Hersch</a>
-          <a href="https://ryan-dcunha.com/">Ryan D'Cunha</a>
-          <a href="https://abhinavchinta.com/">Abhinav Chinta</a>
-        </nav>
+      <h2>Takeaway 2 — Quantization preserves the target task while damaging generality</h2>
+
+      <p>
+        Lower precision can make GPT-2 much smaller: the paper plots FP64, FP32, BF16, FP8, INT8, and INT4 settings against sonnet chrF and model size. QAFT recovers much of the sonnet score at low precision, but the zero-shot check shows the catch: paraphrase accuracy falls sharply after INT8 QAFT.
+      </p>
+
+      <div class="figure-pair">
+        <figure>
+          <img src="fig/precision_qual%20(1).png" alt="Sonnet generation performance versus model size under quantization" loading="lazy" />
+          <figcaption>Quantization gives the memory win, but low-bit behavior depends on whether the model is only quantized for inference or adapted under quantization.</figcaption>
+        </figure>
+        <figure>
+          <img src="fig/zero_shot%20(1).png" alt="Zero-shot paraphrase degradation after quantization-aware fine-tuning" loading="lazy" />
+          <figcaption>The sonnet score hides the broader degradation: zero-shot paraphrase accuracy drops after INT8 QAFT.</figcaption>
+        </figure>
       </div>
-    </footer>
-  </body>
+
+      <div class="callout">
+        <strong>The hidden failure mode:</strong> QAFT recovers the task you trained on. It doesn't preserve the tasks you didn't. BF16 and FP8 preserve much of the generation quality; INT4 saves more memory but hurts performance without specialized training.
+      </div>
+
+      <hr />
+
+      <h2>Takeaway 3 — Synthetic data helps, but a stronger teacher is not always better</h2>
+
+      <p>
+        The original sonnet dataset is tiny. To expand it, we prompt Gemini 2.5 Flash Lite, Flash, and Pro to generate up to 1,000 Shakespearean sonnets, then use those synthetic samples for distillation-style fine-tuning. The results are the paper's most interesting finding: quality, cost, and student capacity interact in a non-obvious way.
+      </p>
+
+      <p>
+        Gemini 2.5 Flash gives the strongest GPT-2 gains, while Gemini 2.5 Pro generates structurally strong sonnets but does not transfer best to the small student. A more capable teacher can still be a worse fit.
+      </p>
+
+      <figure>
+        <img src="fig/data_qual%20(2).png" alt="Synthetic sonnet data quality versus scale for Gemini 2.5 models" loading="lazy" />
+        <figcaption>Flash is the best cost-performance point for GPT-2 in this setup; Pro improves structure but appears harder for the small student to distill.</figcaption>
+      </figure>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Teacher</th>
+            <th>Perfect sonnet rate</th>
+            <th>Takeaway</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Gemini 2.5 Flash Lite</td>
+            <td>56%</td>
+            <td>Cheapest, but low enough quality that more data can hurt</td>
+          </tr>
+          <tr>
+            <td>Gemini 2.5 Flash</td>
+            <td>72%</td>
+            <td>Best downstream fit for GPT-2 Small</td>
+          </tr>
+          <tr>
+            <td>Gemini 2.5 Pro</td>
+            <td>75%</td>
+            <td>Most structurally valid, but not the best student result</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <ul>
+        <li><strong>Flash Lite</strong> is cheap, but only 56% of its sonnets pass the automated 14-line plus rhyme check. Adding more of that data does not help GPT-2.</li>
+        <li><strong>Flash</strong> reaches a 72% perfect-sonnet rate and produces the strongest student result — it lands in the useful middle: better structure without overwhelming the student.</li>
+        <li><strong>Pro</strong> has the highest automated validity rate at 75%, but its 1,000-example run trails Flash. That points to capacity mismatch rather than simple data quality.</li>
+      </ul>
+
+      <div class="callout">
+        <strong>Best synthetic results.</strong><br />
+        Best dev chrF: <strong>46.605</strong>. Best test chrF: <strong>52.838</strong> (12-sonnet test set). Up from 41.078 at full fine-tuning baseline.
+      </div>
+
+
+    </article>
+
+    <aside class="aside-questions">
+      <h4>Open questions</h4>
+      <h5>Capacity</h5>
+      <p>How much stronger would the synthetic-distillation gains be with GPT-2 Medium or Large? We already tested GPT-2 Large on Gemini Pro synthetic data and saw only minimal gain.</p>
+      <h5>Robustness</h5>
+      <p>Do the quantized fine-tuned models retain broader zero-shot behavior across unrelated tasks?</p>
+      <h5>Data quality</h5>
+      <p>Would filtering synthetic sonnets by stricter rhyme and meter checks improve distillation efficiency?</p>
+    </aside>
+  </main>
+
+  <footer>
+    <p>© 2026 &nbsp;·&nbsp; <a href="https://ehersch.github.io/">Ethan Hersch</a> &nbsp;·&nbsp; <a href="https://ryan-dcunha.com/">Ryan D'Cunha</a> &nbsp;·&nbsp; <a href="https://abhinavchinta.com/">Abhinav Chinta</a></p>
+  </footer>
+
+</body>
 </html>
