@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FrugalGPT · Ethan Hersch</title>
   <meta name="description" content="FrugalGPT studies how LoRA, quantization, and synthetic data behave when GPT-2 is pushed toward edge-style constraints." />
+  <link rel="icon" type="image/png" href="fig/blog_logo.png" />
   <style>
     /* ── Reset & base ───────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -16,24 +17,26 @@
       --accent: #2563eb;
       --border: #e5e7eb;
       --code-bg: #f3f4f6;
-      --max-w: 720px;
+      --max-w: 880px;
+      --font-serif: "Iowan Old Style", "Charter", "Georgia", "Times New Roman", serif;
       --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
       --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
     }
 
-    html { font-size: 17px; }
+    html { font-size: 18px; }
 
     body {
-      font-family: var(--font-sans);
+      font-family: var(--font-serif);
       background: var(--bg);
       color: var(--fg);
-      line-height: 1.75;
+      line-height: 1.7;
       -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
 
     /* ── Main content (3-column grid: gutter | text | gutter) ── */
     main {
-      max-width: 1240px;
+      max-width: 1400px;
       margin: 0 auto;
       padding: 4rem 1.5rem 6rem;
       display: grid;
@@ -109,26 +112,31 @@
 
     /* ── Post header ────────────────────────────────────────── */
     .post-meta {
-      font-size: 0.78rem;
+      font-family: var(--font-sans);
+      font-size: 0.75rem;
       color: #16a34a;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.12em;
       font-weight: 600;
-      margin-bottom: 1.25rem;
+      margin-bottom: 1.5rem;
+      text-align: left;
     }
 
     h1.post-title {
-      font-size: 2.25rem;
+      font-family: var(--font-serif);
+      font-size: 2.6rem;
       font-weight: 700;
-      line-height: 1.2;
-      letter-spacing: -0.03em;
-      margin-bottom: 1rem;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      margin-bottom: 1.25rem;
+      text-align: left;
     }
 
     .post-subtitle {
-      font-size: 1.125rem;
-      color: var(--muted);
-      margin-bottom: 2rem;
+      font-family: var(--font-serif);
+      font-size: 1.15rem;
+      color: var(--fg);
+      margin: 0 0 2rem;
       line-height: 1.55;
     }
 
@@ -136,7 +144,8 @@
       display: flex;
       align-items: center;
       gap: 0.6rem;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.25rem;
+      flex-wrap: wrap;
     }
 
     .author-meta {
@@ -145,7 +154,7 @@
     }
 
     .affiliation-row {
-      font-size: 0.82rem;
+      font-size: 0.85rem;
       color: var(--muted);
       margin-bottom: 2rem;
     }
@@ -172,20 +181,25 @@
 
     /* ── Prose ──────────────────────────────────────────────── */
     .prose h2 {
-      font-size: 1.375rem;
-      font-weight: 650;
-      letter-spacing: -0.02em;
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
       margin: 3rem 0 0.75rem;
     }
 
     .prose h3 {
-      font-size: 1.05rem;
-      font-weight: 600;
+      font-family: var(--font-serif);
+      font-size: 1.2rem;
+      font-weight: 700;
       margin: 2rem 0 0.5rem;
       color: var(--fg);
     }
 
-    .prose p { margin-bottom: 1.25rem; }
+    .prose p {
+      margin-bottom: 1.25rem;
+      font-family: var(--font-serif);
+    }
 
     .prose a {
       color: var(--accent);
@@ -253,7 +267,7 @@
     }
 
     .prose figcaption {
-      text-align: center;
+      text-align: left;
       font-size: 0.8125rem;
       color: var(--muted);
       margin-top: 0.6rem;
@@ -395,7 +409,7 @@
     footer {
       border-top: 1px solid var(--border);
       padding: 2rem 1.5rem;
-      text-align: center;
+      text-align: left;
       font-size: 0.8125rem;
       color: var(--muted);
     }
@@ -415,24 +429,15 @@
     </p>
 
     <div class="author-row">
-      <span class="author-meta">Ryan D'Cunha<sup>†</sup> &nbsp;·&nbsp; Ethan Hersch<sup>†</sup> &nbsp;·&nbsp; Abhinav Chinta<sup>†</sup></span>
+      <span class="author-meta">Ryan D'Cunha<sup>†</sup> &nbsp;·&nbsp; Ethan Hersch<sup>†</sup> &nbsp;·&nbsp; Abhinav Chinta<sup>†</sup> &nbsp;·&nbsp; Stanford University &nbsp;·&nbsp; <a href="Frugal_GPT.pdf">paper</a> &nbsp;·&nbsp; <a href="frugal_gpt_poster.pdf">poster</a></span>
     </div>
-    <div class="affiliation-row">Stanford University &nbsp;·&nbsp; <sup>†</sup>Equal contribution</div>
-
-    <div class="action-links">
-      <a href="Frugal_GPT.pdf">Read paper</a>
-      <a href="frugal_gpt_poster.pdf">View poster</a>
-    </div>
+    <div class="affiliation-row"><sup>†</sup>Equal contribution</div>
 
     <hr class="header-rule" />
 
     <p class="callout tldr"><strong>TL;DR</strong><br />LoRA matches full fine-tuning at a fraction of the trainable parameters. Quantization quietly damages generality even when the target task looks fine. And a stronger synthetic-data teacher doesn't always produce a better student — capacity mismatch matters more than raw data quality.</p>
 
     <article class="prose">
-
-      <figure>
-        <img src="fig/pull_fig%20(1).png" alt="FrugalGPT pull figure overview" loading="lazy" />
-      </figure>
 
       <h2>Why this project exists</h2>
 
